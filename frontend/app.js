@@ -173,6 +173,8 @@ class AvatarRenderer {
     this._animToken = 0;
     // Expression animation token – increments to cancel any in-flight expression
     this._exprToken = 0;
+    // Base avatar yaw orientation
+    this._baseRotY  = 0;
 
     this._initScene();
     this._initLights();
@@ -215,14 +217,14 @@ class AvatarRenderer {
     this.scene.add(floor);
 
     this.camera = new THREE.PerspectiveCamera(38, w / h, 0.05, 50);
-    this.camera.position.set(0, 1.45, 2.5);
+    this.camera.position.set(0, 1.25, 3.2);
   }
 
   _initLights() {
     this.scene.add(new THREE.AmbientLight(0xfff4e0, 0.55));
     const key = new THREE.SpotLight(0xfff6d9, 3.8, 12, 0.45, 0.4);
     key.position.set(1.8, 4.5, 3.0);
-    key.target.position.set(0, 1.3, 0);
+    key.target.position.set(0, 1.1, 0);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.bias = -0.001;
@@ -250,7 +252,7 @@ class AvatarRenderer {
     this.controls.maxDistance    = 5.0;
     this.controls.minPolarAngle  = Math.PI * 0.08;
     this.controls.maxPolarAngle  = Math.PI * 0.7;
-    this.controls.target.set(0, 1.30, 0);
+    this.controls.target.set(0, 1.05, 0);
     this.controls.update();
   }
 
@@ -557,25 +559,29 @@ class AvatarRenderer {
 
       hM(new THREE.SphereGeometry(0.168, 48, 48), skin, 0, 0.168, 0, 0, 0, 0, 1, 1.10, 0.92);
       hM(new THREE.SphereGeometry(0.135, 32, 24), skinDark, 0, 0.01, 0.02, 0, 0, 0, 1, 0.55, 0.82);
-      hM(new THREE.SphereGeometry(0.068, 12, 10), skinBlush, -0.108, 0.11, 0.10, 0, 0, 0, 0.65, 0.45, 0.55);
-      hM(new THREE.SphereGeometry(0.068, 12, 10), skinBlush, 0.108, 0.11, 0.10, 0, 0, 0, 0.65, 0.45, 0.55);
-      hM(new THREE.CapsuleGeometry(0.016, 0.062, 8, 8), skinDark, -0.060, 0.198, 0.148, 0, 0, Math.PI / 2);
-      hM(new THREE.CapsuleGeometry(0.016, 0.062, 8, 8), skinDark, 0.060, 0.198, 0.148, 0, 0, Math.PI / 2);
+      hM(new THREE.SphereGeometry(0.068, 12, 10), skinBlush, -0.108, 0.11, 0.12, 0, 0, 0, 0.65, 0.45, 0.55);
+      hM(new THREE.SphereGeometry(0.068, 12, 10), skinBlush, 0.108, 0.11, 0.12, 0, 0, 0, 0.65, 0.45, 0.55);
 
+      // Eyebrows
+      hM(new THREE.CapsuleGeometry(0.016, 0.062, 8, 8), skinDark, -0.060, 0.205, 0.170, 0, 0, Math.PI / 2);
+      hM(new THREE.CapsuleGeometry(0.016, 0.062, 8, 8), skinDark, 0.060, 0.205, 0.170, 0, 0, Math.PI / 2);
+
+      // Eyes
       [-0.062, 0.062].forEach(ex => {
-        hM(new THREE.SphereGeometry(0.030, 16, 12), eyeWhite, ex, 0.168, 0.148);
-        hM(new THREE.SphereGeometry(0.017, 12, 12), eyeIris, ex, 0.168, 0.160);
-        hM(new THREE.SphereGeometry(0.010, 10, 10), eyePupil, ex, 0.168, 0.165);
-        hM(new THREE.SphereGeometry(0.004, 6, 6), eyeHL, ex + 0.007, 0.174, 0.166);
-        hM(new THREE.CapsuleGeometry(0.004, 0.048, 6, 6), S(0x0a0a0a, 0.9), ex, 0.180, 0.146, 0, 0, Math.PI / 2);
+        hM(new THREE.SphereGeometry(0.028, 16, 12), eyeWhite, ex, 0.168, 0.165);
+        hM(new THREE.SphereGeometry(0.018, 14, 12), eyeIris, ex, 0.168, 0.180);
+        hM(new THREE.SphereGeometry(0.010, 10, 10), eyePupil, ex, 0.168, 0.185);
+        hM(new THREE.SphereGeometry(0.005, 6, 6), eyeHL, ex + 0.006, 0.174, 0.188);
+        hM(new THREE.CapsuleGeometry(0.005, 0.048, 6, 6), S(0x0a0a0a, 0.9), ex, 0.184, 0.175, 0, 0, Math.PI / 2);
       });
 
-      hM(new THREE.CapsuleGeometry(0.005, 0.052, 6, 8), hairDark, -0.060, 0.207, 0.142, 0.12, 0, 0.10);
-      hM(new THREE.CapsuleGeometry(0.005, 0.052, 6, 8), hairDark, 0.060, 0.207, 0.142, 0.12, 0, -0.10);
-      hM(new THREE.CapsuleGeometry(0.011, 0.044, 8, 8), skinDark, 0, 0.105, 0.170, 0.28, 0, 0);
-      hM(new THREE.SphereGeometry(0.016, 10, 8), skinDark, 0, 0.086, 0.178);
-      hM(new THREE.CapsuleGeometry(0.010, 0.052, 8, 8), skinBlush, 0, 0.040, 0.172, 0.12, 0, 0);
-      hM(new THREE.CapsuleGeometry(0.008, 0.046, 8, 8), skinBlush, 0, 0.024, 0.170, -0.10, 0, 0);
+      // Nose
+      hM(new THREE.CapsuleGeometry(0.012, 0.044, 8, 8), skinDark, 0, 0.105, 0.190, 0.28, 0, 0);
+      hM(new THREE.SphereGeometry(0.016, 10, 8), skinDark, 0, 0.086, 0.195);
+
+      // Mouth / Lips
+      hM(new THREE.CapsuleGeometry(0.011, 0.052, 8, 8), skinBlush, 0, 0.040, 0.188, 0.12, 0, 0);
+      hM(new THREE.CapsuleGeometry(0.008, 0.046, 8, 8), skinBlush, 0, 0.024, 0.185, -0.10, 0, 0);
 
       // Ears
       hM(new THREE.SphereGeometry(0.034, 10, 10), skinDark, -0.170, 0.148, 0.008, 0, 0, 0, 0.48, 0.78, 0.32);
@@ -583,8 +589,8 @@ class AvatarRenderer {
       hM(new THREE.SphereGeometry(0.010, 8, 8), S(0xd4af37, 0.1, 0.9), -0.178, 0.130, 0.012);
       hM(new THREE.SphereGeometry(0.010, 8, 8), S(0xd4af37, 0.1, 0.9), 0.178, 0.130, 0.012);
 
-      // Hair
-      hM(new THREE.SphereGeometry(0.172, 40, 32, 0, Math.PI * 2, 0, Math.PI * 0.54), hairBase, 0, 0.175, 0);
+      // Hair (styled above forehead so eyes and face are visible)
+      hM(new THREE.SphereGeometry(0.172, 40, 32, 0, Math.PI * 2, 0, Math.PI * 0.44), hairBase, 0, 0.175, 0);
       hM(new THREE.SphereGeometry(0.155, 24, 18), hairLight, 0, 0.310, -0.02, 0, 0, 0, 1, 0.85, 1);
       hM(new THREE.CapsuleGeometry(0.090, 0.32, 12, 16), hairBase, 0, 0.24, -0.16, 0.15, 0, 0);
       hM(new THREE.CapsuleGeometry(0.075, 0.28, 12, 14), hairLight, -0.06, 0.20, -0.20, 0.20, 0, 0.08);
@@ -620,6 +626,8 @@ class AvatarRenderer {
       this._buildHand(this._rHand, skin, skinDark, nail, 1);
 
       root.position.y = 0.0;
+      this._baseRotY  = 0;
+      root.rotation.y = 0;
       this.scene.add(root);
       this.avatar = root;
       this._ready = true;
@@ -885,7 +893,7 @@ class AvatarRenderer {
     if (this.avatar && (!this.mixer || Object.keys(this._clips).length === 0)) {
       // Subtle body breathing (only if not currently driving a sign)
       if (!this._proceduralActive) {
-        this.avatar.rotation.y = Math.sin(t * 0.15) * 0.025;
+        this.avatar.rotation.y = (this._baseRotY || 0) + Math.sin(t * 0.15) * 0.025;
         if (this.headGroup && !this.headGroup.name?.startsWith('virtual')) {
           this.headGroup.rotation.x = Math.sin(t * 0.38) * 0.018;
           this.headGroup.rotation.z = Math.sin(t * 0.22) * 0.012;
@@ -898,7 +906,7 @@ class AvatarRenderer {
     } else if (this.avatar && this.mixer && Object.keys(this._clips).length === 0) {
       // GLB with no embedded clips: gentle avatar rotation so it feels alive
       if (!this._proceduralActive) {
-        this.avatar.rotation.y = Math.sin(t * 0.15) * 0.025;
+        this.avatar.rotation.y = (this._baseRotY || 0) + Math.sin(t * 0.15) * 0.025;
       }
     }
 
