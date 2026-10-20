@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SignAI – Real-Time Speech to Sign Language Avatar</title>
+  <meta name="description" content="Real-time speech-to-sign-language avatar. Speak continuously and watch the 3D avatar sign instantly." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- ══════════ HEADER ══════════ -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">🤟</span>
+        <span class="logo-text">Sign<span class="accent">AI</span></span>
+        <span class="version-badge">v2.0</span>
+      </div>
+
+      <!-- Live mode toggle -->
+      <div class="live-mode-toggle" id="live-toggle">
+        <span class="live-dot" id="live-dot"></span>
+        <span id="live-label">Live Mode OFF</span>
+      </div>
+
+      <nav class="nav-pills">
+        <span class="pill active" id="nav-live">Live</span>
+        <span class="pill" id="nav-demo">Demo</span>
+      </nav>
+
+      <div class="status-dot" id="api-status" title="API / WebSocket Status">
+        <span class="dot"></span>
+        <span class="status-label">Connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════ MAIN GRID ══════════ -->
+  <main class="main-grid">
+
+    <!-- ── LEFT: Speech Controls ── -->
+    <aside class="control-panel glass">
+      <h2 class="panel-title">Speech Input</h2>
+
+      <!-- Mic button -->
+      <div class="mic-wrapper">
+        <button id="btn-mic" class="mic-btn" aria-label="Toggle continuous listening">
+          <svg class="mic-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 1 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-3.08A7 7 0 0 0 19 10z"/>
+          </svg>
+          <span class="mic-ring ring-1"></span>
+          <span class="mic-ring ring-2"></span>
+          <span class="mic-ring ring-3"></span>
+        </button>
+        <p class="mic-hint" id="mic-hint">Click to start <strong>continuous</strong> listening</p>
+        <!-- Live listening indicator -->
+        <div class="listening-bar" id="listening-bar" hidden>
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <!-- Real-time subtitles box -->
+      <div class="field-group">
+        <label class="field-label">
+          Live Subtitles
+          <span class="interim-badge" id="interim-badge" hidden>● interim</span>
+        </label>
+        <div class="subtitle-box glass-inner" id="subtitle-box">
+          <span class="subtitle-text" id="subtitle-final"></span><span class="subtitle-interim" id="subtitle-interim"></span>
+          <span class="cursor-blink" id="cursor-blink" hidden>|</span>
+        </div>
+      </div>
+
+      <!-- Manual input -->
+      <div class="field-group">
+        <label class="field-label" for="manual-input">Or Type Directly</label>
+        <input class="text-input" id="manual-input" type="text"
+               placeholder="e.g. I am going to school and I am happy" />
+      </div>
+
+      <!-- Buttons -->
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-translate">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16">
+            <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+          </svg>
+          Translate
+        </button>
+        <button class="btn btn-ghost" id="btn-clear">Clear</button>
+      </div>
+
+      <!-- Gloss + Chunks display -->
+      <div class="gloss-section" id="gloss-section" hidden>
+        <label class="field-label">ASL Gloss Chunks</label>
+        <div class="chunks-list" id="chunks-list"></div>
+        <label class="field-label" style="margin-top:10px">Animation Queue</label>
+        <div class="queue-chips" id="queue-chips"></div>
+      </div>
+
+      <!-- WS latency display -->
+      <div class="latency-row" id="latency-row" hidden>
+        <span class="latency-label">Response</span>
+        <span class="latency-val" id="latency-val">– ms</span>
+      </div>
+    </aside>
+
+    <!-- ── CENTER: 3D Avatar ── -->
+    <section class="avatar-section">
+      <div class="avatar-canvas-wrapper" id="canvas-wrapper">
+        <canvas id="avatar-canvas"></canvas>
+
+        <!-- Top overlay: now playing + live indicator -->
+        <div class="avatar-overlay">
+          <div class="now-playing" id="now-playing" hidden>
+            <span class="np-dot"></span>
+            <span id="np-text">Signing: hello</span>
+          </div>
+          <div class="rt-badge" id="rt-badge" hidden>
+            <span class="rt-pulse"></span> LIVE
+          </div>
+
+          <!-- Facial Expression HUD -->
+          <div class="expr-hud" id="expr-hud" hidden>
+            <span class="expr-icon" id="expr-icon">😐</span>
+            <div class="expr-info">
+              <span class="expr-label" id="expr-label">NEUTRAL</span>
+              <div class="expr-intensity-bar">
+                <div class="expr-intensity-fill" id="expr-bar-fill"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtitle ribbon at bottom of avatar -->
+        <div class="avatar-subtitle" id="avatar-subtitle" hidden>
+          <span id="avatar-subtitle-text"></span>
+        </div>
+
+        <!-- Segment progress bar -->
+        <div class="anim-progress-bar" id="anim-progress" hidden>
+          <div class="anim-progress-fill" id="anim-progress-fill"></div>
+        </div>
+
+        <!-- Loading placeholder -->
+        <div class="avatar-placeholder" id="avatar-placeholder">
+          <div class="placeholder-spinner"></div>
+          <p>Building 3D Avatar…</p>
+        </div>
+      </div>
+
+      <!-- Playback bar -->
+      <div class="playback-bar glass">
+        <button class="pb-btn" id="pb-play"  title="Play"  disabled>▶</button>
+        <button class="pb-btn" id="pb-pause" title="Pause" disabled>⏸</button>
+        <button class="pb-btn" id="pb-stop"  title="Stop"  disabled>⏹</button>
+        <div class="pb-speed">
+          <label>Speed</label>
+          <input type="range" id="speed-slider" min="0.25" max="2" step="0.25" value="1" />
+          <span id="speed-val">1×</span>
+        </div>
+        <div class="pb-crossfade">
+          <label>Blend</label>
+          <input type="range" id="blend-slider" min="0" max="0.6" step="0.1" value="0.3" />
+          <span id="blend-val">0.3s</span>
+        </div>
+        <div class="pb-anim-counter">
+          <span id="anim-current">0</span> / <span id="anim-total">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RIGHT: Session log + reference ── -->
+    <aside class="info-panel glass">
+      <h2 class="panel-title">Session Log</h2>
+      <div class="log-list" id="log-list">
+        <div class="log-empty">No translations yet.<br/>Start speaking!</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h2 class="panel-title" style="margin-top:0">Quick Reference</h2>
+      <div class="ref-grid">
+        <div class="ref-item"><span class="ref-word">Hello</span><span class="ref-sign">👋</span></div>
+        <div class="ref-item"><span class="ref-word">I / Me</span><span class="ref-sign">👆</span></div>
+        <div class="ref-item"><span class="ref-word">You</span><span class="ref-sign">☝️</span></div>
+        <div class="ref-item"><span class="ref-word">Go</span><span class="ref-sign">🚶</span></div>
+        <div class="ref-item"><span class="ref-word">School</span><span class="ref-sign">🏫</span></div>
+        <div class="ref-item"><span class="ref-word">Love</span><span class="ref-sign">❤️</span></div>
+        <div class="ref-item"><span class="ref-word">Help</span><span class="ref-sign">🤝</span></div>
+        <div class="ref-item"><span class="ref-word">Happy</span><span class="ref-sign">😊</span></div>
+        <div class="ref-item"><span class="ref-word">Thanks</span><span class="ref-sign">🙏</span></div>
+        <div class="ref-item"><span class="ref-word">Sorry</span><span class="ref-sign">🙇</span></div>
+      </div>
+
+      <div class="divider"></div>
+      <h2 class="panel-title" style="margin-top:0">Tips</h2>
+      <ul class="tips-list">
+        <li>Use <kbd>continuous mode</kbd> for real-time signing</li>
+        <li>Speak clearly with short pauses between clauses</li>
+        <li><kbd>and</kbd>, <kbd>but</kbd>, <kbd>then</kbd> split chunks</li>
+      </ul>
+    </aside>
+
+  </main>
+
+  <div class="toast" id="toast" role="alert" aria-live="polite"></div>
+
+
+
+  <script type="module" src="app.js?v=25"></script>
+</body>
+</html>

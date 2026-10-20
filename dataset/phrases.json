@@ -1,0 +1,117 @@
+{
+  "i want coffee": ["me.glb", "want.glb", "coffee.glb"],
+  "i want water": ["me.glb", "want.glb", "water.glb"],
+  "i want food": ["me.glb", "want.glb", "food.glb"],
+  "i need help": ["me.glb", "need.glb", "help.glb"],
+  "i need water": ["me.glb", "need.glb", "water.glb"],
+  "i need food": ["me.glb", "need.glb", "food.glb"],
+
+  "i am hungry": ["me.glb", "hungry.glb"],
+  "i am thirsty": ["me.glb", "thirsty.glb"],
+  "i am happy": ["me.glb", "happy.glb"],
+  "i am sad": ["me.glb", "sad.glb"],
+  "i am tired": ["me.glb", "tired.glb"],
+
+  "i am going home": ["me.glb", "go.glb", "home.glb"],
+  "i am going to school": ["me.glb", "go.glb", "school.glb"],
+  "i am going to office": ["me.glb", "go.glb", "office.glb"],
+  "i am going outside": ["me.glb", "go.glb", "outside.glb"],
+
+  "i like coffee": ["me.glb", "like.glb", "coffee.glb"],
+  "i like food": ["me.glb", "like.glb", "food.glb"],
+  "i like you": ["me.glb", "like.glb", "you.glb"],
+
+  "i do not understand": ["me.glb", "not.glb", "understand.glb"],
+  "please help me": ["please.glb", "help.glb", "me.glb"],
+  "thank you": ["thankyou.glb"],
+  "sorry": ["sorry.glb"],
+
+  "good morning": ["good.glb", "morning.glb"],
+  "good afternoon": ["good.glb", "afternoon.glb"],
+  "good evening": ["good.glb", "evening.glb"],
+  "good night": ["good.glb", "night.glb"],
+
+  "how are you": ["you.glb", "how.glb"],
+  "what is your name": ["your.glb", "name.glb", "what.glb"],
+  "my name is jeeva": ["me.glb", "name.glb", "jeeva.glb"],
+
+  "where are you going": ["you.glb", "go.glb", "where.glb"],
+  "what are you doing": ["you.glb", "do.glb", "what.glb"],
+  "who are you": ["you.glb", "who.glb"],
+
+  "i am studying": ["me.glb", "study.glb"],
+  "i am working": ["me.glb", "work.glb"],
+  "i am learning": ["me.glb", "learn.glb"],
+
+  "open the door": ["open.glb", "door.glb"],
+  "close the door": ["close.glb", "door.glb"],
+  "turn on light": ["turnon.glb", "light.glb"],
+  "turn off light": ["turnoff.glb", "light.glb"],
+
+  "come here": ["come.glb", "here.glb"],
+  "go there": ["go.glb", "there.glb"],
+  "sit down": ["sit.glb", "down.glb"],
+  "stand up": ["stand.glb", "up.glb"],
+
+  "give me water": ["give.glb", "me.glb", "water.glb"],
+  "give me food": ["give.glb", "me.glb", "food.glb"],
+  "take this": ["take.glb", "this.glb"],
+
+  "i am fine": ["me.glb", "fine.glb"],
+  "i am okay": ["me.glb", "okay.glb"],
+  "no problem": ["no.glb", "problem.glb"],
+
+  "wait here": ["wait.glb", "here.glb"],
+  "wait a minute": ["wait.glb", "minute.glb"],
+  "come fast": ["come.glb", "fast.glb"],
+  "go fast": ["go.glb", "fast.glb"],
+
+  "i will come": ["me.glb", "come.glb"],
+  "i will go": ["me.glb", "go.glb"],
+  "i will help you": ["me.glb", "help.glb", "you.glb"],
+
+  "this is good": ["this.glb", "good.glb"],
+  "this is bad": ["this.glb", "bad.glb"],
+  "this is important": ["this.glb", "important.glb"],
+
+  "where is bathroom": ["bathroom.glb", "where.glb"],
+  "where is school": ["school.glb", "where.glb"],
+  "where is office": ["office.glb", "where.glb"],
+
+  "call me": ["call.glb", "me.glb"],
+  "i will call you": ["me.glb", "call.glb", "you.glb"],
+  "message me": ["message.glb", "me.glb"],
+
+  "i am ready": ["me.glb", "ready.glb"],
+  "are you ready": ["you.glb", "ready.glb"],
+
+  "start now": ["start.glb", "now.glb"],
+  "stop now": ["stop.glb", "now.glb"],
+
+  "i understand": ["me.glb", "understand.glb"],
+  "i do not know": ["me.glb", "not.glb", "know.glb"],
+
+  "tell me": ["tell.glb", "me.glb"],
+  "listen to me": ["listen.glb", "me.glb"],
+
+  "look here": ["look.glb", "here.glb"],
+  "look there": ["look.glb", "there.glb"],
+
+  "i forgot": ["me.glb", "forget.glb"],
+  "i remember": ["me.glb", "remember.glb"],
+
+  "buy food": ["buy.glb", "food.glb"],
+  "buy coffee": ["buy.glb", "coffee.glb"],
+
+  "pay money": ["pay.glb", "money.glb"],
+  "save money": ["save.glb", "money.glb"],
+
+  "i am busy": ["me.glb", "busy.glb"],
+  "i am free": ["me.glb", "free.glb"],
+
+  "come tomorrow": ["come.glb", "tomorrow.glb"],
+  "come today": ["come.glb", "today.glb"],
+
+  "go tomorrow": ["go.glb", "tomorrow.glb"],
+  "go today": ["go.glb", "today.glb"]
+}

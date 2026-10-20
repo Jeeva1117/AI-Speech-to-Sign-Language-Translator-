@@ -1,0 +1,28 @@
+# Python virtual environments & bytecode
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary & scratch files
+scratch/
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+
+# Model checkpoints & cache
+.cache/
+models/*/checkpoints/
+*.pt
+*.bin
+*.safetensors
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

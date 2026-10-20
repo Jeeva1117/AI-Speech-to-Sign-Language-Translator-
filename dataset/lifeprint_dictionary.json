@@ -1,0 +1,47 @@
+{
+  "HELLO": {
+    "word": "HELLO",
+    "handshape": "B-handshape (flat hand, fingers together)",
+    "movement": "Start at the forehead/temple, move outward in a small sweeping motion",
+    "position": "Forehead/Temple area",
+    "expression": "Friendly smile, eye contact",
+    "animation_plan": "Right hand starts at forehead in B-shape, sweeps outward. Fast, smooth.",
+    "glb_file": "hello.glb"
+  },
+  "GO": {
+    "word": "GO",
+    "handshape": "Index fingers pointing (1-handshape)",
+    "movement": "Start near body, sweep outward and forward in the direction of travel",
+    "position": "Chest level",
+    "expression": "Neutral or determined depending on context",
+    "animation_plan": "Both index fingers point forward and flick outward.",
+    "glb_file": "go.glb"
+  },
+  "SCHOOL": {
+    "word": "SCHOOL",
+    "handshape": "Flat hands (B-handshape)",
+    "movement": "Clap hands together twice horizontally",
+    "position": "Chest level",
+    "expression": "Neutral",
+    "animation_plan": "Bring right hand down onto left palm twice. Slight pause between claps.",
+    "glb_file": "school.glb"
+  },
+  "EAT": {
+    "word": "EAT",
+    "handshape": "O-handshape (fingers bunched together)",
+    "movement": "Bring fingertips to mouth once or twice",
+    "position": "Mouth",
+    "expression": "Neutral, or slight chewing motion",
+    "animation_plan": "Hand pinches and taps the mouth area twice.",
+    "glb_file": "eat.glb"
+  },
+  "WANT": {
+    "word": "WANT",
+    "handshape": "Claw handshapes",
+    "movement": "Palms up, pull hands toward body while curling fingers inward slightly",
+    "position": "Chest/Waist level",
+    "expression": "Slight desire/focus expression",
+    "animation_plan": "Hands start extended, palms up, then pull back to body curling into claws.",
+    "glb_file": "want.glb"
+  }
+}
