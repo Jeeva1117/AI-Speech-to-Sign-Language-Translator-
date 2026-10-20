@@ -86,6 +86,7 @@ def analyze_sentence(sentence: str) -> dict:
             "icon": "🙅",
             "eyebrows": "furrowed",
             "head_movement": "shake",
+            "head_shake": True,
             "intensity": 0.7,
             "duration_ms": 1000
         }
