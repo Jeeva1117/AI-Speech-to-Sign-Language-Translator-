@@ -19,6 +19,7 @@ Thumbs.db
 models/*/checkpoints/
 *.pt
 *.bin
+!assets/**/*.bin
 *.safetensors
 
 # Environment variables & secrets

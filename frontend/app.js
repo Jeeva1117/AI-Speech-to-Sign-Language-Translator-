@@ -361,13 +361,19 @@ class AvatarRenderer {
       this._mapSkeletonBones(root);
 
       if (this._isRiggedGLB) {
-        // Natural relaxed resting posture (arms down along torso instead of rigid T-pose)
-        this._bindPose.lUZ = -1.25;
-        this._bindPose.rUZ = 1.25;
-        this._bindPose.lUX = 0.08;
-        this._bindPose.rUX = 0.08;
-        this._bindPose.lFX = 0.20;
-        this._bindPose.rFX = 0.20;
+        // Natural relaxed resting posture (arms hanging naturally along torso)
+        this._bindPose.lUX = 1.30;
+        this._bindPose.rUX = 1.30;
+        this._bindPose.lUZ = -0.05;
+        this._bindPose.rUZ = 0.05;
+        this._bindPose.lUY = 0.0;
+        this._bindPose.rUY = 0.0;
+        this._bindPose.lFX = 0.15;
+        this._bindPose.rFX = 0.15;
+        this._bindPose.lFY = 0.0;
+        this._bindPose.rFY = 0.0;
+        this._bindPose.lFZ = 0.0;
+        this._bindPose.rFZ = 0.0;
         this.resetPose(true);
       }
 
@@ -830,14 +836,36 @@ class AvatarRenderer {
     let tgtRUX = rUX;
     let tgtLFX = lFX;
     let tgtRFX = rFX;
+    let tgtLFZ = 0;
+    let tgtRFZ = 0;
 
     if (this._isRiggedGLB) {
-      tgtLUZ = REST.lUZ + Math.abs(lUZ) * 1.5;
-      tgtRUZ = REST.rUZ - Math.abs(rUZ) * 1.5;
-      tgtLUX = REST.lUX + Math.abs(lUX) * 0.9;
-      tgtRUX = REST.rUX + Math.abs(rUX) * 0.9;
-      tgtLFX = REST.lFX + Math.abs(lFX) * 0.9;
-      tgtRFX = REST.rFX + Math.abs(rFX) * 0.9;
+      // In rigged skeleton:
+      // Upper arm height: 1.30 (resting at hip) -> 0.30-0.55 (raised into signing chest/shoulder space)
+      const rRaise = Math.min(1.05, Math.max(0.40, Math.abs(rFX) * 0.45 + Math.abs(rUX) * 0.50));
+      const lRaise = Math.min(1.05, Math.max(0.40, Math.abs(lFX) * 0.45 + Math.abs(lUX) * 0.50));
+      tgtRUX = REST.rUX - rRaise;
+      tgtLUX = REST.lUX - lRaise;
+      tgtRUZ = REST.rUZ + (rUZ || 0) * 0.7;
+      tgtLUZ = REST.lUZ + (lUZ || 0) * 0.7;
+
+      // Forearm flexion (elbow bend inward/upward):
+      tgtRFX = REST.rFX + Math.min(1.50, Math.max(0.45, Math.abs(rFX) * 0.70));
+      tgtLFX = REST.lFX + Math.min(1.50, Math.max(0.45, Math.abs(lFX) * 0.70));
+
+      // Specific sign nuances:
+      if (key === 'hello' || key === 'bye') {
+        tgtRFZ = 1.15; // swing forearm up towards temple
+        tgtRUX = 0.25; // raise upper arm high
+        tgtRFX = 0.85;
+      } else if (key === 'me' || key === 'i') {
+        tgtRFX = 1.45; // bring hand to center of chest
+        tgtRUZ = 0.20;
+      } else if (key === 'you') {
+        tgtRUX = 0.40;
+        tgtRFX = 0.40;
+        tgtRFZ = 0.40;
+      }
     }
 
     const t0 = now();
@@ -847,9 +875,11 @@ class AvatarRenderer {
 
     const initPose = {
       lUZ: this._lUpperArm.rotation.z, rUZ: this._rUpperArm.rotation.z,
+      lUX: this._lUpperArm.rotation.x, rUX: this._rUpperArm.rotation.x,
       lFX: this._lForearm ? this._lForearm.rotation.x : -0.1,
       rFX: this._rForearm ? this._rForearm.rotation.x : -0.1,
-      lUX: this._lUpperArm.rotation.x, rUX: this._rUpperArm.rotation.x,
+      lFZ: this._lForearm ? this._lForearm.rotation.z : 0,
+      rFZ: this._rForearm ? this._rForearm.rotation.z : 0,
       lHX: this._lHand?.rotation.x || 0, rHX: this._rHand?.rotation.x || 0,
       spX: this.spine?.rotation.x || 0, spY: this.spine?.rotation.y || 0,
     };
@@ -863,22 +893,42 @@ class AvatarRenderer {
       const el = now() - t0;
       if (el < ATTACK) {
         const t = smooth(el / ATTACK);
-        this._lUpperArm.rotation.set(initPose.lUX + (tgtLUX - initPose.lUX) * t, REST.lUY || 0, initPose.lUZ + (tgtLUZ - initPose.lUZ) * t);
-        this._rUpperArm.rotation.set(initPose.rUX + (tgtRUX - initPose.rUX) * t, REST.rUY || 0, initPose.rUZ + (tgtRUZ - initPose.rUZ) * t);
-        if (this._lForearm) this._lForearm.rotation.x = initPose.lFX + (tgtLFX - initPose.lFX) * t;
-        if (this._rForearm) this._rForearm.rotation.x = initPose.rFX + (tgtRFX - initPose.rFX) * t;
+        this._lUpperArm.rotation.set(
+          initPose.lUX + (tgtLUX - initPose.lUX) * t,
+          REST.lUY || 0,
+          initPose.lUZ + (tgtLUZ - initPose.lUZ) * t
+        );
+        this._rUpperArm.rotation.set(
+          initPose.rUX + (tgtRUX - initPose.rUX) * t,
+          REST.rUY || 0,
+          initPose.rUZ + (tgtRUZ - initPose.rUZ) * t
+        );
+        if (this._lForearm) {
+          this._lForearm.rotation.set(
+            initPose.lFX + (tgtLFX - initPose.lFX) * t,
+            REST.lFY || 0,
+            initPose.lFZ + (tgtLFZ - initPose.lFZ) * t
+          );
+        }
+        if (this._rForearm) {
+          this._rForearm.rotation.set(
+            initPose.rFX + (tgtRFX - initPose.rFX) * t,
+            REST.rFY || 0,
+            initPose.rFZ + (tgtRFZ - initPose.rFZ) * t
+          );
+        }
         if (this._lHand) this._lHand.rotation.x = initPose.lHX + (lHX - initPose.lHX) * t;
         if (this._rHand) this._rHand.rotation.x = initPose.rHX + (rHX - initPose.rHX) * t;
         if (this.spine) this.spine.rotation.set(initPose.spX + (spX - initPose.spX) * t, initPose.spY + (spY - initPose.spY) * t, 0);
         if (this.headGroup && this.spine) this.headGroup.rotation.y = this.spine.rotation.y * -0.5;
 
-        // Animate rigged fingers if mapped
+        // Animate rigged fingers with authentic handshape articulation
         if (this._isRiggedGLB && this._fingers) {
-          const curl = t * 0.45;
+          const curl = t * 0.55;
           for (const side of ['left', 'right']) {
             for (const [digit, dbones] of Object.entries(this._fingers[side])) {
               dbones.forEach((b, idx) => {
-                if (idx > 0) b.rotation.z = (side === 'left' ? 1 : -1) * curl * 0.4;
+                if (idx > 0) b.rotation.x = curl;
               });
             }
           }
@@ -892,17 +942,44 @@ class AvatarRenderer {
         } else {
           w = Math.sin(holdT * Math.PI) * 0.03;
         }
-        this._lUpperArm.rotation.z = tgtLUZ + w * 0.4;
-        this._rUpperArm.rotation.z = tgtRUZ - w * 0.4;
-        if (this._lForearm) this._lForearm.rotation.x = tgtLFX + w * 0.7;
-        if (this._rForearm) this._rForearm.rotation.x = tgtRFX + w * 0.7;
+        if (this._isRiggedGLB) {
+          this._lUpperArm.rotation.x = tgtLUX + w * 0.25;
+          this._rUpperArm.rotation.x = tgtRUX + w * 0.25;
+          if (this._lForearm) this._lForearm.rotation.x = tgtLFX + w * 0.4;
+          if (this._rForearm) this._rForearm.rotation.x = tgtRFX + w * 0.4;
+        } else {
+          this._lUpperArm.rotation.z = tgtLUZ + w * 0.4;
+          this._rUpperArm.rotation.z = tgtRUZ - w * 0.4;
+          if (this._lForearm) this._lForearm.rotation.x = tgtLFX + w * 0.7;
+          if (this._rForearm) this._rForearm.rotation.x = tgtRFX + w * 0.7;
+        }
         requestAnimationFrame(tick);
       } else if (el < dur) {
         const t = smooth((el - ATTACK - HOLD) / Math.max(RELEASE, 1));
-        this._lUpperArm.rotation.set(tgtLUX * (1 - t) + REST.lUX * t, REST.lUY || 0, tgtLUZ + (REST.lUZ - tgtLUZ) * t);
-        this._rUpperArm.rotation.set(tgtRUX * (1 - t) + REST.rUX * t, REST.rUY || 0, tgtRUZ + (REST.rUZ - tgtRUZ) * t);
-        if (this._lForearm) this._lForearm.rotation.x = tgtLFX + (REST.lFX - tgtLFX) * t;
-        if (this._rForearm) this._rForearm.rotation.x = tgtRFX + (REST.rFX - tgtRFX) * t;
+        this._lUpperArm.rotation.set(
+          tgtLUX * (1 - t) + REST.lUX * t,
+          REST.lUY || 0,
+          tgtLUZ * (1 - t) + (REST.lUZ || 0) * t
+        );
+        this._rUpperArm.rotation.set(
+          tgtRUX * (1 - t) + REST.rUX * t,
+          REST.rUY || 0,
+          tgtRUZ * (1 - t) + (REST.rUZ || 0) * t
+        );
+        if (this._lForearm) {
+          this._lForearm.rotation.set(
+            tgtLFX * (1 - t) + (REST.lFX || 0) * t,
+            REST.lFY || 0,
+            tgtLFZ * (1 - t) + (REST.lFZ || 0) * t
+          );
+        }
+        if (this._rForearm) {
+          this._rForearm.rotation.set(
+            tgtRFX * (1 - t) + (REST.rFX || 0) * t,
+            REST.rFY || 0,
+            tgtRFZ * (1 - t) + (REST.rFZ || 0) * t
+          );
+        }
         if (this._lHand) this._lHand.rotation.x = lHX * (1 - t) + (REST.lHX || 0) * t;
         if (this._rHand) this._rHand.rotation.x = rHX * (1 - t) + (REST.rHX || 0) * t;
         if (this.spine) this.spine.rotation.set(spX * (1 - t) + (REST.spX || 0) * t, spY * (1 - t) + (REST.spY || 0) * t, 0);
@@ -910,11 +987,11 @@ class AvatarRenderer {
 
         // Relax fingers
         if (this._isRiggedGLB && this._fingers) {
-          const curl = (1 - t) * 0.45;
+          const curl = (1 - t) * 0.55;
           for (const side of ['left', 'right']) {
             for (const [digit, dbones] of Object.entries(this._fingers[side])) {
               dbones.forEach((b, idx) => {
-                if (idx > 0) b.rotation.z = (side === 'left' ? 1 : -1) * curl * 0.4;
+                if (idx > 0) b.rotation.x = curl;
               });
             }
           }
@@ -937,10 +1014,10 @@ class AvatarRenderer {
     const REST = this._bindPose || { lUZ: 0.20, rUZ: -0.20, lFX: -0.1, rFX: -0.1, lUX: 0, rUX: 0, spX: 0, spY: 0 };
 
     if (instant) {
-      this._lUpperArm.rotation.set(REST.lUX, REST.lUY || 0, REST.lUZ);
-      this._rUpperArm.rotation.set(REST.rUX, REST.rUY || 0, REST.rUZ);
-      if (this._lForearm) this._lForearm.rotation.set(REST.lFX, REST.lFY || 0, REST.lFZ || 0);
-      if (this._rForearm) this._rForearm.rotation.set(REST.rFX, REST.rFY || 0, REST.rFZ || 0);
+      this._lUpperArm.rotation.set(REST.lUX || 0, REST.lUY || 0, REST.lUZ || 0);
+      this._rUpperArm.rotation.set(REST.rUX || 0, REST.rUY || 0, REST.rUZ || 0);
+      if (this._lForearm) this._lForearm.rotation.set(REST.lFX || 0, REST.lFY || 0, REST.lFZ || 0);
+      if (this._rForearm) this._rForearm.rotation.set(REST.rFX || 0, REST.rFY || 0, REST.rFZ || 0);
       if (this._lHand) this._lHand.rotation.set(REST.lHX || 0, REST.lHY || 0, REST.lHZ || 0);
       if (this._rHand) this._rHand.rotation.set(REST.rHX || 0, REST.rHY || 0, REST.rHZ || 0);
       if (this.spine) this.spine.rotation.set(REST.spX || 0, REST.spY || 0, REST.spZ || 0);
@@ -958,18 +1035,19 @@ class AvatarRenderer {
     const t0  = now();
     const curr = {
       lUZ: this._lUpperArm.rotation.z, rUZ: this._rUpperArm.rotation.z,
-      lFX: this._lForearm?.rotation.x || 0, rFX: this._rForearm?.rotation.x || 0,
       lUX: this._lUpperArm.rotation.x, rUX: this._rUpperArm.rotation.x,
+      lFX: this._lForearm?.rotation.x || 0, rFX: this._rForearm?.rotation.x || 0,
+      lFZ: this._lForearm?.rotation.z || 0, rFZ: this._rForearm?.rotation.z || 0,
       spX: this.spine?.rotation.x || 0, spY: this.spine?.rotation.y || 0,
     };
     const tick = () => {
       if (this._animToken !== myToken) return;
       const el = now() - t0;
       if (el >= dur) {
-        this._lUpperArm.rotation.set(REST.lUX, REST.lUY || 0, REST.lUZ);
-        this._rUpperArm.rotation.set(REST.rUX, REST.rUY || 0, REST.rUZ);
-        if (this._lForearm) this._lForearm.rotation.set(REST.lFX, REST.lFY || 0, REST.lFZ || 0);
-        if (this._rForearm) this._rForearm.rotation.set(REST.rFX, REST.rFY || 0, REST.rFZ || 0);
+        this._lUpperArm.rotation.set(REST.lUX || 0, REST.lUY || 0, REST.lUZ || 0);
+        this._rUpperArm.rotation.set(REST.rUX || 0, REST.rUY || 0, REST.rUZ || 0);
+        if (this._lForearm) this._lForearm.rotation.set(REST.lFX || 0, REST.lFY || 0, REST.lFZ || 0);
+        if (this._rForearm) this._rForearm.rotation.set(REST.rFX || 0, REST.rFY || 0, REST.rFZ || 0);
         if (this.spine) this.spine.rotation.set(REST.spX || 0, REST.spY || 0, 0);
         if (this._fingers) {
           for (const side of ['left', 'right']) {
@@ -981,10 +1059,30 @@ class AvatarRenderer {
         return;
       }
       const t = smooth(el / dur);
-      this._lUpperArm.rotation.set(curr.lUX * (1 - t) + REST.lUX * t, REST.lUY || 0, curr.lUZ + (REST.lUZ - curr.lUZ) * t);
-      this._rUpperArm.rotation.set(curr.rUX * (1 - t) + REST.rUX * t, REST.rUY || 0, curr.rUZ + (REST.rUZ - curr.rUZ) * t);
-      if (this._lForearm) this._lForearm.rotation.x = curr.lFX + (REST.lFX - curr.lFX) * t;
-      if (this._rForearm) this._rForearm.rotation.x = curr.rFX + (REST.rFX - curr.rFX) * t;
+      this._lUpperArm.rotation.set(
+        curr.lUX * (1 - t) + (REST.lUX || 0) * t,
+        REST.lUY || 0,
+        curr.lUZ * (1 - t) + (REST.lUZ || 0) * t
+      );
+      this._rUpperArm.rotation.set(
+        curr.rUX * (1 - t) + (REST.rUX || 0) * t,
+        REST.rUY || 0,
+        curr.rUZ * (1 - t) + (REST.rUZ || 0) * t
+      );
+      if (this._lForearm) {
+        this._lForearm.rotation.set(
+          curr.lFX * (1 - t) + (REST.lFX || 0) * t,
+          REST.lFY || 0,
+          curr.lFZ * (1 - t) + (REST.lFZ || 0) * t
+        );
+      }
+      if (this._rForearm) {
+        this._rForearm.rotation.set(
+          curr.rFX * (1 - t) + (REST.rFX || 0) * t,
+          REST.rFY || 0,
+          curr.rFZ * (1 - t) + (REST.rFZ || 0) * t
+        );
+      }
       if (this.spine) {
         this.spine.rotation.set(curr.spX * (1 - t) + (REST.spX || 0) * t, curr.spY * (1 - t) + (REST.spY || 0) * t, 0);
         if (this.headGroup) this.headGroup.rotation.y = this.spine.rotation.y * -0.5;
@@ -1021,10 +1119,19 @@ class AvatarRenderer {
           this.headGroup.rotation.z = hdZ + Math.sin(t * 0.22) * 0.012;
         }
         if (hasProceduralBones && !this._proceduralActive) {
-          const lUZ = this._bindPose ? this._bindPose.lUZ : 0.22;
-          const rUZ = this._bindPose ? this._bindPose.rUZ : -0.22;
-          this._lUpperArm.rotation.z = lUZ + Math.sin(t * 0.45) * 0.01;
-          this._rUpperArm.rotation.z = rUZ - Math.sin(t * 0.45) * 0.01;
+          if (this._isRiggedGLB) {
+            const lUX = this._bindPose ? this._bindPose.lUX : 1.30;
+            const rUX = this._bindPose ? this._bindPose.rUX : 1.30;
+            this._lUpperArm.rotation.x = lUX + Math.sin(t * 0.45) * 0.012;
+            this._rUpperArm.rotation.x = rUX + Math.sin(t * 0.45) * 0.012;
+            this._lUpperArm.rotation.z = this._bindPose ? this._bindPose.lUZ : -0.05;
+            this._rUpperArm.rotation.z = this._bindPose ? this._bindPose.rUZ : 0.05;
+          } else {
+            const lUZ = this._bindPose ? this._bindPose.lUZ : 0.22;
+            const rUZ = this._bindPose ? this._bindPose.rUZ : -0.22;
+            this._lUpperArm.rotation.z = lUZ + Math.sin(t * 0.45) * 0.01;
+            this._rUpperArm.rotation.z = rUZ - Math.sin(t * 0.45) * 0.01;
+          }
         }
       }
     } else if (this.avatar && this.mixer && Object.keys(this._clips).length === 0) {
