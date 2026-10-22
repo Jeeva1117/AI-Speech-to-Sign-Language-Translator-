@@ -89,28 +89,26 @@ The **procedural avatar** built into Three.js will show automatically, so the ap
 
 ### Step 3 — Start FastAPI server
 
+FastAPI serves the entire application (API, WebSockets, static assets, and frontend) on port 8000:
+
 ```powershell
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# From project root (venv active)
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-API docs available at: **http://127.0.0.1:8000/docs**
+- Web Application: **http://127.0.0.1:8000**
+- Interactive API Docs: **http://127.0.0.1:8000/docs**
+- WebSocket Streaming: **ws://127.0.0.1:8000/ws/realtime**
 
-### Step 4 — Open the frontend
+*(Optional) You can also serve the frontend standalone with `python -m http.server 5500` from the `frontend/` folder.*
 
-Open a second terminal and serve the frontend (required for ES Modules):
-
-```powershell
-# Option A – Python built-in server (simplest)
-cd c:\Users\acer\Desktop\aisignlanguagetranslator2026\frontend
-python -m http.server 5500
-
-# Then open:  http://127.0.0.1:5500
-```
+### Step 4 — Run Automated Tests
 
 ```powershell
-# Option B – VS Code Live Server
-# Right-click index.html → "Open with Live Server"
+python tests/test_api.py
+python tests/test_regression.py
+python test_facial.py
+python test_hybrid.py
 ```
 
 ---
@@ -204,9 +202,10 @@ Stopwords removed: `is, am, are, was, were, a, an, the, to, of, in, on, at, for,
 
 ## Roadmap (Phase 2 & 3)
 
-- [ ] Upload audio file → Whisper transcription
-- [ ] Finger-spelling fallback (A–Z letter animations)
+- [x] Upload audio file → Whisper transcription (`POST /speech-to-text`)
+- [x] Finger-spelling fallback (A–Z letter & 0-9 number animations)
+- [x] WebSocket real-time streaming (`/ws/realtime`)
+- [x] Non-manual facial expressions (wh-questions, yn-questions, emotions)
 - [ ] Real skeletal animation blending with morph targets
 - [ ] Multi-language support (BSL, ISL, Auslan)
-- [ ] WebSocket real-time streaming instead of REST polling
 - [ ] Docker compose for one-command deployment

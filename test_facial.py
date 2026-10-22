@@ -1,4 +1,4 @@
-"""
+r"""
 Smoke test: facial_service + hybrid_service
 Run from project root:  venv\Scripts\python test_facial.py
 """

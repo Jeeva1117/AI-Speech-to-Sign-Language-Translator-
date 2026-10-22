@@ -70,11 +70,47 @@ def make_minimal_glb(word: str) -> bytes:
     return header + chunk
 
 
+def collect_all_mapped_words():
+    all_words = set(WORDS)
+    base_dir = os.path.dirname(__file__)
+
+    dataset_files = [
+        os.path.join(base_dir, "dataset", "words.json"),
+        os.path.join(base_dir, "dataset", "phrases.json"),
+        os.path.join(base_dir, "dataset", "alphabet.json"),
+        os.path.join(base_dir, "data", "animation_mapping.json"),
+    ]
+
+    for df in dataset_files:
+        if os.path.exists(df):
+            try:
+                with open(df, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                for k, v in data.items():
+                    if isinstance(v, str) and v.endswith(".glb"):
+                        all_words.add(v[:-4].lower())
+                    elif isinstance(v, list):
+                        for item in v:
+                            if isinstance(item, str) and item.endswith(".glb"):
+                                all_words.add(item[:-4].lower())
+            except Exception as e:
+                print(f"[!] Warning reading {df}: {e}")
+
+    # Ensure alphabet and numbers 0-9
+    for ch in "abcdefghijklmnopqrstuvwxyz":
+        all_words.add(ch)
+    for n in "0123456789":
+        all_words.add(n)
+
+    return sorted(list(all_words))
+
+
 def main():
     os.makedirs(ANIMATIONS_DIR, exist_ok=True)
+    all_words = collect_all_mapped_words()
     created = 0
 
-    for word in WORDS:
+    for word in all_words:
         path = os.path.join(ANIMATIONS_DIR, f"{word}.glb")
         if not os.path.exists(path):
             glb = make_minimal_glb(word)
@@ -82,7 +118,7 @@ def main():
                 f.write(glb)
             created += 1
 
-    print(f"[OK]  Created {created} placeholder GLB file(s) in: {ANIMATIONS_DIR}")
+    print(f"[OK]  Checked {len(all_words)} animations. Created {created} placeholder GLB file(s) in: {ANIMATIONS_DIR}")
     print("      Replace them with real motion-capture GLBs as you acquire them.")
 
 

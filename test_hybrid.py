@@ -1,4 +1,4 @@
-"""
+r"""
 Full validation test for both ASL grammar engine and hybrid service.
 Run from project root:
   venv\Scripts\python.exe test_hybrid.py

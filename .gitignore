@@ -21,8 +21,16 @@ models/*/checkpoints/
 *.bin
 *.safetensors
 
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
 # IDE & Editor files
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
+node_modules/
