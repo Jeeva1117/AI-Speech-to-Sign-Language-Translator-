@@ -18,15 +18,16 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
    CONFIG
 ════════════════════════════════════════════════════════════ */
 const CFG = {
-  API_BASE:      'http://127.0.0.1:8000',
-  WS_URL:        'ws://127.0.0.1:8000/ws/realtime',
-  AVATAR_PATH:   '/assets/avatar.glb',
-  ANIM_BASE:     '/assets/animations/',
-  DEFAULT_ANIM:  'default.glb',
-  SIGN_DURATION:  2200,
-  CROSSFADE:      0.3,
-  SILENCE_MS:     1200,
-  PRELOAD_AHEAD:  2,
+  API_BASE:             'http://127.0.0.1:8000',
+  WS_URL:               'ws://127.0.0.1:8000/ws/realtime',
+  AVATAR_PATH:          '/assets/tahin_avatar/scene.gltf',
+  FALLBACK_AVATAR_PATH: '/assets/avatar.glb',
+  ANIM_BASE:            '/assets/animations/',
+  DEFAULT_ANIM:         'default.glb',
+  SIGN_DURATION:        2200,
+  CROSSFADE:            0.3,
+  SILENCE_MS:           1200,
+  PRELOAD_AHEAD:        2,
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -256,28 +257,52 @@ class AvatarRenderer {
     this.controls.update();
   }
 
-  _loadAvatar() {
-    const localUrl = `${CFG.API_BASE}${CFG.AVATAR_PATH}`;
+  _loadAvatar(overrideUrl = null) {
+    const localUrl = overrideUrl || `${CFG.API_BASE}${CFG.AVATAR_PATH}`;
+    console.log('[SignAI] Loading 3D avatar from:', localUrl);
     this._loader.load(
       localUrl,
       gltf => {
-        // If GLB has real animation clips, load it
-        if (gltf.animations && gltf.animations.length > 0) {
-          console.log('[SignAI] Local avatar.glb with embedded clips loaded successfully');
-          this._onGLTFLoaded(gltf);
-          showToast('Avatar with GLB animations loaded! ✨', 'success');
-        } else {
-          // If GLB has no clips (placeholder or static mesh), build the full procedural avatar
-          // which has full 5-finger hands, jacket, facial features, and 100% working ASL arm animations
-          console.log('[SignAI] avatar.glb has no embedded animations. Activating procedural 3D avatar.');
+        try {
+          // Check if GLTF has animation clips or a rigged humanoid skeleton
+          const hasSkeleton = (() => {
+            let found = false;
+            gltf.scene.traverse(n => {
+              if ((n.isSkinnedMesh && n.skeleton?.bones?.length > 10) || n.isBone) {
+                found = true;
+              }
+            });
+            return found;
+          })();
+
+          if ((gltf.animations && gltf.animations.length > 0) || hasSkeleton) {
+            console.log('[SignAI] Rigged 3D avatar loaded successfully');
+            this._onGLTFLoaded(gltf);
+            showToast('Tahin 3D Avatar Ready! ✨', 'success');
+          } else {
+            console.log('[SignAI] Avatar has no skeleton or clips. Activating procedural avatar.');
+            this._buildProceduralAvatar();
+            showToast('SignAI 3D Avatar Ready ✨', 'success');
+          }
+        } catch (err) {
+          console.error('[SignAI] Error setting up avatar:', err);
           this._buildProceduralAvatar();
-          showToast('SignAI 3D Avatar Ready ✨', 'success');
         }
       },
-      xhr => {},
+      xhr => {
+        if (xhr.lengthComputable) {
+          const pct = Math.round((xhr.loaded / xhr.total) * 100);
+          console.log(`[SignAI] Avatar load progress: ${pct}%`);
+        }
+      },
       err => {
-        console.warn('[SignAI] Local avatar.glb failed, using procedural:', err.message || err);
-        this._buildProceduralAvatar();
+        console.warn(`[SignAI] Failed loading avatar from ${localUrl}:`, err.message || err);
+        if (!overrideUrl && CFG.FALLBACK_AVATAR_PATH) {
+          console.log('[SignAI] Trying fallback avatar:', CFG.FALLBACK_AVATAR_PATH);
+          this._loadAvatar(`${CFG.API_BASE}${CFG.FALLBACK_AVATAR_PATH}`);
+        } else {
+          this._buildProceduralAvatar();
+        }
       }
     );
   }
@@ -306,7 +331,8 @@ class AvatarRenderer {
           n.castShadow    = true;
           n.receiveShadow = true;
           if (n.material) {
-            n.material.envMapIntensity = 1.2;
+            n.material.envMapIntensity = 1.0;
+            n.material.roughness = Math.max(n.material.roughness || 0.4, 0.35);
             if (n.material.map) n.material.map.anisotropy = 8;
           }
         }
@@ -328,11 +354,22 @@ class AvatarRenderer {
           this._currentAction = a;
         }
       } else {
-        console.warn('[SignAI] GLB has NO embedded animations – switching to skeleton-driven procedural mode');
+        console.log('[SignAI] Humanoid skeleton loaded without clips – using ASL skeletal kinematics');
       }
 
-      // ── CRITICAL: map skeleton bones so procedural signs can drive the avatar ──
+      // Map skeleton bones so procedural signs drive the avatar
       this._mapSkeletonBones(root);
+
+      if (this._isRiggedGLB) {
+        // Natural relaxed resting posture (arms down along torso instead of rigid T-pose)
+        this._bindPose.lUZ = -1.25;
+        this._bindPose.rUZ = 1.25;
+        this._bindPose.lUX = 0.08;
+        this._bindPose.rUX = 0.08;
+        this._bindPose.lFX = 0.20;
+        this._bindPose.rFX = 0.20;
+        this.resetPose(true);
+      }
 
       this._ready = true;
       this._hidePlaceholder();
@@ -343,13 +380,10 @@ class AvatarRenderer {
   }
 
   /**
-   * Scan the loaded GLB for humanoid skeleton bones and bind them to the
-   * same references used by _playProceduralSign().  Works with ReadyPlayerMe,
-   * Mixamo, VRM and most standard rigged avatars.
+   * Scan the loaded GLB/GLTF for humanoid skeleton bones and bind them to
+   * procedural kinematics. Works with ReadyPlayerMe, Sketchfab, Mixamo, VRM.
    */
   _mapSkeletonBones(root) {
-    // Collect every bone: first via SkinnedMesh.skeleton (most reliable),
-    // then fall back to isBone traversal.
     const boneSet = new Set();
     root.traverse(n => {
       if (n.isSkinnedMesh && n.skeleton?.bones) {
@@ -360,9 +394,6 @@ class AvatarRenderer {
 
     const bones = [...boneSet];
     console.log('[SignAI] Skeleton scan – total bones found:', bones.length);
-    if (bones.length) {
-      console.log('[SignAI] Bone names:', bones.map(b => b.name).join(', '));
-    }
 
     // Name-pattern matching (case-insensitive, strips separators)
     const nm = s => s.toLowerCase().replace(/[\s_.\-]/g, '');
@@ -370,86 +401,93 @@ class AvatarRenderer {
     for (const bone of bones) {
       const n = nm(bone.name);
 
-      // Left upper arm  (LeftArm / LeftUpperArm / mixamorig:LeftArm)
+      // Left upper arm: LeftArm_013, LeftUpperArm, mixamorig:LeftArm
       if (!this._lUpperArm &&
-          (n.includes('leftarm') || n === 'larm' || n.endsWith('leftupperarm') ||
-           n === 'leftshoulder' || n === 'shoulderl' || n.includes('l_upperarm'))) {
+          ((n.includes('leftarm') || n.includes('leftupperarm') || n === 'larm' || n.includes('l_upperarm')) &&
+           !n.includes('forearm') && !n.includes('lower') && !n.includes('shoulder'))) {
         this._lUpperArm = bone;
         console.log('[SignAI] 🦾 L.UpperArm →', bone.name);
       }
       // Right upper arm
       if (!this._rUpperArm &&
-          (n.includes('rightarm') || n === 'rarm' || n.endsWith('rightupperarm') ||
-           n === 'rightshoulder' || n === 'shoulderr' || n.includes('r_upperarm'))) {
+          ((n.includes('rightarm') || n.includes('rightupperarm') || n === 'rarm' || n.includes('r_upperarm')) &&
+           !n.includes('forearm') && !n.includes('lower') && !n.includes('shoulder'))) {
         this._rUpperArm = bone;
         console.log('[SignAI] 🦾 R.UpperArm →', bone.name);
       }
       // Left forearm
       if (!this._lForearm &&
-          (n.includes('leftforearm') || n.includes('lforearm') ||
-           n.includes('leftlowerarm') || n.includes('leftelbow') ||
-           n.includes('l_forearm'))) {
+          (n.includes('leftforearm') || n.includes('lforearm') || n.includes('leftlowerarm') || n.includes('leftelbow')) &&
+          !n.endsWith('1015') && !n.endsWith('2016')) {
         this._lForearm = bone;
         console.log('[SignAI] 💪 L.Forearm →', bone.name);
       }
       // Right forearm
       if (!this._rForearm &&
-          (n.includes('rightforearm') || n.includes('rforearm') ||
-           n.includes('rightlowerarm') || n.includes('rightelbow') ||
-           n.includes('r_forearm'))) {
+          (n.includes('rightforearm') || n.includes('rforearm') || n.includes('rightlowerarm') || n.includes('rightelbow')) &&
+          !n.endsWith('1041') && !n.endsWith('2042')) {
         this._rForearm = bone;
         console.log('[SignAI] 💪 R.Forearm →', bone.name);
       }
       // Left hand / wrist
       if (!this._lHand &&
-          (n.includes('lefthand') || n === 'lhand' || n.includes('leftwrist') ||
-           n.includes('l_hand'))) {
+          (n.includes('lefthand') || n.includes('leftwrist') || n === 'lhand') &&
+          !n.includes('thumb') && !n.includes('index') && !n.includes('middle') && !n.includes('ring') && !n.includes('pinky')) {
         this._lHand = bone;
         console.log('[SignAI] ✋ L.Hand →', bone.name);
       }
       // Right hand / wrist
       if (!this._rHand &&
-          (n.includes('righthand') || n === 'rhand' || n.includes('rightwrist') ||
-           n.includes('r_hand'))) {
+          (n.includes('righthand') || n.includes('rightwrist') || n === 'rhand') &&
+          !n.includes('thumb') && !n.includes('index') && !n.includes('middle') && !n.includes('ring') && !n.includes('pinky')) {
         this._rHand = bone;
         console.log('[SignAI] 🤚 R.Hand →', bone.name);
       }
-      // Spine / chest / hips (use the first one found)
-      if (!this.spine &&
-          (n === 'spine' || n === 'spine1' || n === 'spine2' || n === 'chest' ||
-           n === 'upperchest' || n === 'hips' || n === 'pelvis' ||
-           n === 'torso' || n.includes('spine'))) {
+      // Spine / chest / hips
+      if (!this.spine && (n.includes('spine') || n.includes('chest') || n.includes('torso'))) {
         this.spine = bone;
         console.log('[SignAI] 🫀 Spine →', bone.name);
       }
       // Head
-      if (!this.headGroup &&
-          (n === 'head' || n === 'headjnt' || n === 'bip001head' || n.endsWith('head'))) {
+      if (!this.headGroup && (n.includes('head') || n.includes('headjnt') || n.includes('bip001head')) &&
+          !n.includes('top') && !n.includes('end')) {
         this.headGroup = bone;
         console.log('[SignAI] 👤 Head →', bone.name);
       }
     }
 
-    // ── Fallback: if arm bones still not found, try index-based guesses ─────
+    // Finger mapping for detailed 5-digit sign articulation
+    this._fingers = {
+      left: { thumb: [], index: [], middle: [], ring: [], pinky: [] },
+      right: { thumb: [], index: [], middle: [], ring: [], pinky: [] }
+    };
+    for (const bone of bones) {
+      const n = nm(bone.name);
+      const isLeft = n.includes('left') || n.startsWith('l');
+      const isRight = n.includes('right') || n.startsWith('r');
+      const side = isLeft ? 'left' : (isRight ? 'right' : null);
+      if (side) {
+        for (const digit of ['thumb', 'index', 'middle', 'ring', 'pinky']) {
+          if (n.includes(digit)) {
+            this._fingers[side][digit].push(bone);
+          }
+        }
+      }
+    }
+
+    // Fallbacks if arm bones not matched by name
     if (!this._lUpperArm && bones.length > 0) {
       console.warn('[SignAI] ⚠️ Arm bones not matched by name – trying partial fallbacks');
-      // Try any bone whose name contains "arm"
       const armBones = bones.filter(b => nm(b.name).includes('arm'));
-      console.log('[SignAI] Arm-like bones:', armBones.map(b => b.name));
       const lArm = armBones.find(b => nm(b.name).startsWith('l') || nm(b.name).includes('left'));
       const rArm = armBones.find(b => nm(b.name).startsWith('r') || nm(b.name).includes('right'));
       if (lArm) { this._lUpperArm = lArm; console.log('[SignAI] Fallback L.Arm →', lArm.name); }
       if (rArm) { this._rUpperArm = rArm; console.log('[SignAI] Fallback R.Arm →', rArm.name); }
     }
 
-    // ── Last resort: attach virtual animation groups to the avatar root ──────
-    // These are invisible Groups; rotating them won't move GLB mesh geometry
-    // but prevents _playProceduralSign from silently no-oping.
+    // Last resort virtual animation groups if no skeleton present
     if (!this._lUpperArm) {
       console.warn('[SignAI] ❌ No arm bones found. Attaching virtual animation groups.');
-      console.warn('[SignAI]    The avatar body will NOT visually move during signs.');
-      console.warn('[SignAI]    FIX: Export your GLB with a rigged humanoid skeleton.');
-
       const makeVirtual = (name, parent) => {
         const g = new THREE.Group(); g.name = name; parent.add(g); return g;
       };
@@ -463,16 +501,44 @@ class AvatarRenderer {
       if (!this.headGroup) this.headGroup = makeVirtual('virtual_head',  root);
     }
 
-    // ── Ensure forearm/hand fallbacks so _playProceduralSign never crashes ─
     if (!this._lForearm)  this._lForearm  = this._lUpperArm;
     if (!this._rForearm)  this._rForearm  = this._rUpperArm;
     if (!this.spine)      this.spine      = root;
     if (!this.headGroup)  this.headGroup  = null;
 
-    const mapped = !!this._lUpperArm && !(this._lUpperArm.name?.startsWith('virtual'));
-    console.log(mapped
-      ? '[SignAI] ✅ Skeleton bones fully mapped – procedural signs will animate the GLB'
-      : '[SignAI] ⚠️  Virtual groups in use – upgrade GLB to rigged avatar for body motion');
+    this._isRiggedGLB = !(this._lUpperArm.name?.startsWith('virtual'));
+
+    // Record resting bind pose rotations
+    this._bindPose = {
+      lUZ: this._lUpperArm.rotation.z,
+      rUZ: this._rUpperArm.rotation.z,
+      lUX: this._lUpperArm.rotation.x,
+      rUX: this._rUpperArm.rotation.x,
+      lUY: this._lUpperArm.rotation.y,
+      rUY: this._rUpperArm.rotation.y,
+      lFX: this._lForearm ? this._lForearm.rotation.x : 0,
+      rFX: this._rForearm ? this._rForearm.rotation.x : 0,
+      lFY: this._lForearm ? this._lForearm.rotation.y : 0,
+      rFY: this._rForearm ? this._rForearm.rotation.y : 0,
+      lFZ: this._lForearm ? this._lForearm.rotation.z : 0,
+      rFZ: this._rForearm ? this._rForearm.rotation.z : 0,
+      lHX: this._lHand ? this._lHand.rotation.x : 0,
+      rHX: this._rHand ? this._rHand.rotation.x : 0,
+      lHY: this._lHand ? this._lHand.rotation.y : 0,
+      rHY: this._rHand ? this._rHand.rotation.y : 0,
+      lHZ: this._lHand ? this._lHand.rotation.z : 0,
+      rHZ: this._rHand ? this._rHand.rotation.z : 0,
+      spX: this.spine ? this.spine.rotation.x : 0,
+      spY: this.spine ? this.spine.rotation.y : 0,
+      spZ: this.spine ? this.spine.rotation.z : 0,
+      hdX: this.headGroup ? this.headGroup.rotation.x : 0,
+      hdY: this.headGroup ? this.headGroup.rotation.y : 0,
+      hdZ: this.headGroup ? this.headGroup.rotation.z : 0,
+    };
+
+    console.log(this._isRiggedGLB
+      ? `[SignAI] ✅ 3D Avatar skeleton fully mapped (${bones.length} bones, fingers active)`
+      : '[SignAI] ⚠️ Virtual animation groups in use');
   }
 
   _buildProceduralAvatar() {
@@ -755,6 +821,25 @@ class AvatarRenderer {
       repeats = 1;
     }
 
+    const REST = this._bindPose || { lUZ: 0.20, rUZ: -0.20, lFX: -0.1, rFX: -0.1, lUX: 0, rUX: 0, lHX: 0, rHX: 0, spX: 0, spY: 0 };
+
+    // For rigged GLTF skeletons, map attack poses to natural skeletal kinematic coordinates
+    let tgtLUZ = lUZ;
+    let tgtRUZ = rUZ;
+    let tgtLUX = lUX;
+    let tgtRUX = rUX;
+    let tgtLFX = lFX;
+    let tgtRFX = rFX;
+
+    if (this._isRiggedGLB) {
+      tgtLUZ = REST.lUZ + Math.abs(lUZ) * 1.5;
+      tgtRUZ = REST.rUZ - Math.abs(rUZ) * 1.5;
+      tgtLUX = REST.lUX + Math.abs(lUX) * 0.9;
+      tgtRUX = REST.rUX + Math.abs(rUX) * 0.9;
+      tgtLFX = REST.lFX + Math.abs(lFX) * 0.9;
+      tgtRFX = REST.rFX + Math.abs(rFX) * 0.9;
+    }
+
     const t0 = now();
     const ATTACK = Math.min(dur * 0.32, 550);
     const RELEASE = Math.min(dur * 0.26, 450);
@@ -768,7 +853,6 @@ class AvatarRenderer {
       lHX: this._lHand?.rotation.x || 0, rHX: this._rHand?.rotation.x || 0,
       spX: this.spine?.rotation.x || 0, spY: this.spine?.rotation.y || 0,
     };
-    const REST = { lUZ: 0.20, rUZ: -0.20, lFX: -0.1, rFX: -0.1, lUX: 0, rUX: 0, lHX: 0, rHX: 0, spX: 0, spY: 0 };
 
     const tick = () => {
       if (this._animToken !== myToken) {
@@ -779,14 +863,26 @@ class AvatarRenderer {
       const el = now() - t0;
       if (el < ATTACK) {
         const t = smooth(el / ATTACK);
-        this._lUpperArm.rotation.set(initPose.lUX + (lUX - initPose.lUX) * t, 0, initPose.lUZ + (lUZ - initPose.lUZ) * t);
-        this._rUpperArm.rotation.set(initPose.rUX + (rUX - initPose.rUX) * t, 0, initPose.rUZ + (rUZ - initPose.rUZ) * t);
-        if (this._lForearm) this._lForearm.rotation.x = initPose.lFX + (lFX - initPose.lFX) * t;
-        if (this._rForearm) this._rForearm.rotation.x = initPose.rFX + (rFX - initPose.rFX) * t;
+        this._lUpperArm.rotation.set(initPose.lUX + (tgtLUX - initPose.lUX) * t, REST.lUY || 0, initPose.lUZ + (tgtLUZ - initPose.lUZ) * t);
+        this._rUpperArm.rotation.set(initPose.rUX + (tgtRUX - initPose.rUX) * t, REST.rUY || 0, initPose.rUZ + (tgtRUZ - initPose.rUZ) * t);
+        if (this._lForearm) this._lForearm.rotation.x = initPose.lFX + (tgtLFX - initPose.lFX) * t;
+        if (this._rForearm) this._rForearm.rotation.x = initPose.rFX + (tgtRFX - initPose.rFX) * t;
         if (this._lHand) this._lHand.rotation.x = initPose.lHX + (lHX - initPose.lHX) * t;
         if (this._rHand) this._rHand.rotation.x = initPose.rHX + (rHX - initPose.rHX) * t;
         if (this.spine) this.spine.rotation.set(initPose.spX + (spX - initPose.spX) * t, initPose.spY + (spY - initPose.spY) * t, 0);
         if (this.headGroup && this.spine) this.headGroup.rotation.y = this.spine.rotation.y * -0.5;
+
+        // Animate rigged fingers if mapped
+        if (this._isRiggedGLB && this._fingers) {
+          const curl = t * 0.45;
+          for (const side of ['left', 'right']) {
+            for (const [digit, dbones] of Object.entries(this._fingers[side])) {
+              dbones.forEach((b, idx) => {
+                if (idx > 0) b.rotation.z = (side === 'left' ? 1 : -1) * curl * 0.4;
+              });
+            }
+          }
+        }
         requestAnimationFrame(tick);
       } else if (el < ATTACK + HOLD) {
         const holdT = (el - ATTACK) / Math.max(HOLD, 1);
@@ -796,21 +892,33 @@ class AvatarRenderer {
         } else {
           w = Math.sin(holdT * Math.PI) * 0.03;
         }
-        this._lUpperArm.rotation.z = lUZ + w * 0.4;
-        this._rUpperArm.rotation.z = rUZ - w * 0.4;
-        if (this._lForearm) this._lForearm.rotation.x = lFX + w * 0.7;
-        if (this._rForearm) this._rForearm.rotation.x = rFX + w * 0.7;
+        this._lUpperArm.rotation.z = tgtLUZ + w * 0.4;
+        this._rUpperArm.rotation.z = tgtRUZ - w * 0.4;
+        if (this._lForearm) this._lForearm.rotation.x = tgtLFX + w * 0.7;
+        if (this._rForearm) this._rForearm.rotation.x = tgtRFX + w * 0.7;
         requestAnimationFrame(tick);
       } else if (el < dur) {
         const t = smooth((el - ATTACK - HOLD) / Math.max(RELEASE, 1));
-        this._lUpperArm.rotation.set(lUX * (1 - t), 0, lUZ + (REST.lUZ - lUZ) * t);
-        this._rUpperArm.rotation.set(rUX * (1 - t), 0, rUZ + (REST.rUZ - rUZ) * t);
-        if (this._lForearm) this._lForearm.rotation.x = lFX + (REST.lFX - lFX) * t;
-        if (this._rForearm) this._rForearm.rotation.x = rFX + (REST.rFX - rFX) * t;
-        if (this._lHand) this._lHand.rotation.x = lHX * (1 - t);
-        if (this._rHand) this._rHand.rotation.x = rHX * (1 - t);
-        if (this.spine) this.spine.rotation.set(spX * (1 - t), spY * (1 - t), 0);
+        this._lUpperArm.rotation.set(tgtLUX * (1 - t) + REST.lUX * t, REST.lUY || 0, tgtLUZ + (REST.lUZ - tgtLUZ) * t);
+        this._rUpperArm.rotation.set(tgtRUX * (1 - t) + REST.rUX * t, REST.rUY || 0, tgtRUZ + (REST.rUZ - tgtRUZ) * t);
+        if (this._lForearm) this._lForearm.rotation.x = tgtLFX + (REST.lFX - tgtLFX) * t;
+        if (this._rForearm) this._rForearm.rotation.x = tgtRFX + (REST.rFX - tgtRFX) * t;
+        if (this._lHand) this._lHand.rotation.x = lHX * (1 - t) + (REST.lHX || 0) * t;
+        if (this._rHand) this._rHand.rotation.x = rHX * (1 - t) + (REST.rHX || 0) * t;
+        if (this.spine) this.spine.rotation.set(spX * (1 - t) + (REST.spX || 0) * t, spY * (1 - t) + (REST.spY || 0) * t, 0);
         if (this.headGroup && this.spine) this.headGroup.rotation.y = this.spine.rotation.y * -0.5;
+
+        // Relax fingers
+        if (this._isRiggedGLB && this._fingers) {
+          const curl = (1 - t) * 0.45;
+          for (const side of ['left', 'right']) {
+            for (const [digit, dbones] of Object.entries(this._fingers[side])) {
+              dbones.forEach((b, idx) => {
+                if (idx > 0) b.rotation.z = (side === 'left' ? 1 : -1) * curl * 0.4;
+              });
+            }
+          }
+        }
         requestAnimationFrame(tick);
       } else {
         this._proceduralActive = false;
@@ -826,16 +934,23 @@ class AvatarRenderer {
     if (!this._lUpperArm) return;
     const myToken = ++this._animToken;
     this._proceduralActive = false;
-    const REST = { lUZ: 0.20, rUZ: -0.20, lFX: -0.1, rFX: -0.1, lUX: 0, rUX: 0, spX: 0, spY: 0 };
+    const REST = this._bindPose || { lUZ: 0.20, rUZ: -0.20, lFX: -0.1, rFX: -0.1, lUX: 0, rUX: 0, spX: 0, spY: 0 };
 
     if (instant) {
-      this._lUpperArm.rotation.set(REST.lUX, 0, REST.lUZ);
-      this._rUpperArm.rotation.set(REST.rUX, 0, REST.rUZ);
-      if (this._lForearm) this._lForearm.rotation.x = REST.lFX;
-      if (this._rForearm) this._rForearm.rotation.x = REST.rFX;
-      if (this._lHand) this._lHand.rotation.set(0, 0, 0);
-      if (this._rHand) this._rHand.rotation.set(0, 0, 0);
-      if (this.spine) this.spine.rotation.set(0, 0, 0);
+      this._lUpperArm.rotation.set(REST.lUX, REST.lUY || 0, REST.lUZ);
+      this._rUpperArm.rotation.set(REST.rUX, REST.rUY || 0, REST.rUZ);
+      if (this._lForearm) this._lForearm.rotation.set(REST.lFX, REST.lFY || 0, REST.lFZ || 0);
+      if (this._rForearm) this._rForearm.rotation.set(REST.rFX, REST.rFY || 0, REST.rFZ || 0);
+      if (this._lHand) this._lHand.rotation.set(REST.lHX || 0, REST.lHY || 0, REST.lHZ || 0);
+      if (this._rHand) this._rHand.rotation.set(REST.rHX || 0, REST.rHY || 0, REST.rHZ || 0);
+      if (this.spine) this.spine.rotation.set(REST.spX || 0, REST.spY || 0, REST.spZ || 0);
+      if (this._fingers) {
+        for (const side of ['left', 'right']) {
+          for (const bones of Object.values(this._fingers[side])) {
+            bones.forEach(b => b.rotation.set(0, 0, 0));
+          }
+        }
+      }
       return;
     }
 
@@ -851,20 +966,27 @@ class AvatarRenderer {
       if (this._animToken !== myToken) return;
       const el = now() - t0;
       if (el >= dur) {
-        this._lUpperArm.rotation.set(REST.lUX, 0, REST.lUZ);
-        this._rUpperArm.rotation.set(REST.rUX, 0, REST.rUZ);
-        if (this._lForearm) this._lForearm.rotation.x = REST.lFX;
-        if (this._rForearm) this._rForearm.rotation.x = REST.rFX;
-        if (this.spine) this.spine.rotation.set(REST.spX, REST.spY, 0);
+        this._lUpperArm.rotation.set(REST.lUX, REST.lUY || 0, REST.lUZ);
+        this._rUpperArm.rotation.set(REST.rUX, REST.rUY || 0, REST.rUZ);
+        if (this._lForearm) this._lForearm.rotation.set(REST.lFX, REST.lFY || 0, REST.lFZ || 0);
+        if (this._rForearm) this._rForearm.rotation.set(REST.rFX, REST.rFY || 0, REST.rFZ || 0);
+        if (this.spine) this.spine.rotation.set(REST.spX || 0, REST.spY || 0, 0);
+        if (this._fingers) {
+          for (const side of ['left', 'right']) {
+            for (const bones of Object.values(this._fingers[side])) {
+              bones.forEach(b => b.rotation.set(0, 0, 0));
+            }
+          }
+        }
         return;
       }
       const t = smooth(el / dur);
-      this._lUpperArm.rotation.set(curr.lUX * (1 - t), 0, curr.lUZ + (REST.lUZ - curr.lUZ) * t);
-      this._rUpperArm.rotation.set(curr.rUX * (1 - t), 0, curr.rUZ + (REST.rUZ - curr.rUZ) * t);
+      this._lUpperArm.rotation.set(curr.lUX * (1 - t) + REST.lUX * t, REST.lUY || 0, curr.lUZ + (REST.lUZ - curr.lUZ) * t);
+      this._rUpperArm.rotation.set(curr.rUX * (1 - t) + REST.rUX * t, REST.rUY || 0, curr.rUZ + (REST.rUZ - curr.rUZ) * t);
       if (this._lForearm) this._lForearm.rotation.x = curr.lFX + (REST.lFX - curr.lFX) * t;
       if (this._rForearm) this._rForearm.rotation.x = curr.rFX + (REST.rFX - curr.rFX) * t;
       if (this.spine) {
-        this.spine.rotation.set(curr.spX * (1 - t), curr.spY * (1 - t), 0);
+        this.spine.rotation.set(curr.spX * (1 - t) + (REST.spX || 0) * t, curr.spY * (1 - t) + (REST.spY || 0) * t, 0);
         if (this.headGroup) this.headGroup.rotation.y = this.spine.rotation.y * -0.5;
       }
       requestAnimationFrame(tick);
@@ -887,24 +1009,25 @@ class AvatarRenderer {
     const delta = this.clock.getDelta();
     const t = this.clock.elapsedTime;
 
-    // Idle breathing & subtle motion – runs for BOTH procedural and GLB avatars
-    // (GLB without clips also needs idle so the avatar feels alive)
+    // Idle breathing & subtle motion
     const hasProceduralBones = !!this._lUpperArm;
     if (this.avatar && (!this.mixer || Object.keys(this._clips).length === 0)) {
-      // Subtle body breathing (only if not currently driving a sign)
       if (!this._proceduralActive) {
         this.avatar.rotation.y = (this._baseRotY || 0) + Math.sin(t * 0.15) * 0.025;
         if (this.headGroup && !this.headGroup.name?.startsWith('virtual')) {
-          this.headGroup.rotation.x = Math.sin(t * 0.38) * 0.018;
-          this.headGroup.rotation.z = Math.sin(t * 0.22) * 0.012;
+          const hdX = this._bindPose ? this._bindPose.hdX : 0;
+          const hdZ = this._bindPose ? this._bindPose.hdZ : 0;
+          this.headGroup.rotation.x = hdX + Math.sin(t * 0.38) * 0.018;
+          this.headGroup.rotation.z = hdZ + Math.sin(t * 0.22) * 0.012;
         }
         if (hasProceduralBones && !this._proceduralActive) {
-          this._lUpperArm.rotation.z = 0.22 + Math.sin(t * 0.45) * 0.01;
-          this._rUpperArm.rotation.z = -0.22 - Math.sin(t * 0.45) * 0.01;
+          const lUZ = this._bindPose ? this._bindPose.lUZ : 0.22;
+          const rUZ = this._bindPose ? this._bindPose.rUZ : -0.22;
+          this._lUpperArm.rotation.z = lUZ + Math.sin(t * 0.45) * 0.01;
+          this._rUpperArm.rotation.z = rUZ - Math.sin(t * 0.45) * 0.01;
         }
       }
     } else if (this.avatar && this.mixer && Object.keys(this._clips).length === 0) {
-      // GLB with no embedded clips: gentle avatar rotation so it feels alive
       if (!this._proceduralActive) {
         this.avatar.rotation.y = (this._baseRotY || 0) + Math.sin(t * 0.15) * 0.025;
       }
