@@ -841,30 +841,49 @@ class AvatarRenderer {
 
     if (this._isRiggedGLB) {
       // In rigged skeleton:
-      // Upper arm height: 1.30 (resting at hip) -> 0.30-0.55 (raised into signing chest/shoulder space)
-      const rRaise = Math.min(1.05, Math.max(0.40, Math.abs(rFX) * 0.45 + Math.abs(rUX) * 0.50));
-      const lRaise = Math.min(1.05, Math.max(0.40, Math.abs(lFX) * 0.45 + Math.abs(lUX) * 0.50));
-      tgtRUX = REST.rUX - rRaise;
-      tgtLUX = REST.lUX - lRaise;
-      tgtRUZ = REST.rUZ + (rUZ || 0) * 0.7;
-      tgtLUZ = REST.lUZ + (lUZ || 0) * 0.7;
+      // Elevate upper arms from resting A-pose (1.30) to forward signing space (0.35)
+      tgtRUX = 0.38 - Math.min(0.20, Math.abs(rUX) * 0.15);
+      tgtLUX = 0.38 - Math.min(0.20, Math.abs(lUX) * 0.15);
+      tgtRUZ = 0.70 + Math.abs(rUZ || 0) * 0.25;
+      tgtLUZ = -0.70 - Math.abs(lUZ || 0) * 0.25;
 
-      // Forearm flexion (elbow bend inward/upward):
-      tgtRFX = REST.rFX + Math.min(1.50, Math.max(0.45, Math.abs(rFX) * 0.70));
-      tgtLFX = REST.lFX + Math.min(1.50, Math.max(0.45, Math.abs(lFX) * 0.70));
+      // Forearm flexion (elbow bend up to chest level)
+      tgtRFX = 1.30 + Math.min(0.35, Math.abs(rFX) * 0.15);
+      tgtLFX = 1.30 + Math.min(0.35, Math.abs(lFX) * 0.15);
+      tgtRFZ = 0.25;
+      tgtLFZ = -0.25;
 
-      // Specific sign nuances:
+      // Single-arm signs vs two-arm signs
+      const isRightDominant = ['hello', 'bye', 'me', 'i', 'my', 'you', 'your', 'drink', 'water', 'eat', 'food', 'please', 'sorry', 'yes', 'no', 'thanks', 'thankyou'].includes(key);
+      if (isRightDominant) {
+        // Keep left arm resting relaxed at side
+        tgtLUX = REST.lUX;
+        tgtLUZ = REST.lUZ;
+        tgtLFX = REST.lFX;
+        tgtLFZ = REST.lFZ;
+      }
+
+      // Nuances for specific signs:
       if (key === 'hello' || key === 'bye') {
-        tgtRFZ = 1.15; // swing forearm up towards temple
-        tgtRUX = 0.25; // raise upper arm high
-        tgtRFX = 0.85;
-      } else if (key === 'me' || key === 'i') {
-        tgtRFX = 1.45; // bring hand to center of chest
-        tgtRUZ = 0.20;
-      } else if (key === 'you') {
-        tgtRUX = 0.40;
-        tgtRFX = 0.40;
-        tgtRFZ = 0.40;
+        tgtRUX = 0.20;
+        tgtRUZ = 0.80;
+        tgtRFX = 1.10;
+        tgtRFZ = 1.35; // salute at temple
+      } else if (key === 'me' || key === 'i' || key === 'my') {
+        tgtRUX = 0.38;
+        tgtRUZ = 0.65;
+        tgtRFX = 1.45;
+        tgtRFZ = 0.10; // point to center of chest
+      } else if (key === 'you' || key === 'your') {
+        tgtRUX = 0.45;
+        tgtRUZ = 0.85;
+        tgtRFX = 0.60;
+        tgtRFZ = 0.20; // pointing outward towards viewer
+      } else if (key === 'eat' || key === 'food' || key === 'drink' || key === 'water') {
+        tgtRUX = 0.25;
+        tgtRUZ = 0.75;
+        tgtRFX = 1.40;
+        tgtRFZ = 0.80; // hand brought to mouth
       }
     }
 
@@ -940,13 +959,13 @@ class AvatarRenderer {
         if (repeats > 1) {
           w = Math.sin(holdT * Math.PI * 2 * repeats) * 0.12;
         } else {
-          w = Math.sin(holdT * Math.PI) * 0.03;
+          w = Math.sin(holdT * Math.PI) * 0.04;
         }
         if (this._isRiggedGLB) {
-          this._lUpperArm.rotation.x = tgtLUX + w * 0.25;
-          this._rUpperArm.rotation.x = tgtRUX + w * 0.25;
-          if (this._lForearm) this._lForearm.rotation.x = tgtLFX + w * 0.4;
-          if (this._rForearm) this._rForearm.rotation.x = tgtRFX + w * 0.4;
+          this._lUpperArm.rotation.set(tgtLUX + w * 0.12, REST.lUY || 0, tgtLUZ + w * 0.12);
+          this._rUpperArm.rotation.set(tgtRUX + w * 0.12, REST.rUY || 0, tgtRUZ + w * 0.12);
+          if (this._lForearm) this._lForearm.rotation.set(tgtLFX + w * 0.25, REST.lFY || 0, tgtLFZ + w * 0.2);
+          if (this._rForearm) this._rForearm.rotation.set(tgtRFX + w * 0.25, REST.rFY || 0, tgtRFZ + w * 0.2);
         } else {
           this._lUpperArm.rotation.z = tgtLUZ + w * 0.4;
           this._rUpperArm.rotation.z = tgtRUZ - w * 0.4;
@@ -2115,6 +2134,20 @@ class SignAIApp {
       $('nav-live')?.classList.add('active');
       $('nav-demo')?.classList.remove('active');
       this._checkAPI();
+    });
+
+    // Quick reference chips -> click to trigger sign immediately
+    document.querySelectorAll('.ref-item').forEach(item => {
+      item.style.cursor = 'pointer';
+      item.addEventListener('click', () => {
+        const word = item.querySelector('.ref-word')?.textContent?.trim() || '';
+        const cleanWord = word.split('/')[0].trim().toLowerCase();
+        if (cleanWord) {
+          const mi = $('manual-input');
+          if (mi) mi.value = cleanWord;
+          this._translate(cleanWord, false);
+        }
+      });
     });
   }
 
